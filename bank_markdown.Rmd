@@ -1,0 +1,639 @@
+---
+title: "Bank Product Recommendations - Complete Model without Evaluation"
+author: Grewal, Dinesh (imdineshgrewal@gmail.com)
+output: html_document
+---
+
+###Introduction
+An algorithm which helps bank to predict which products their existing customers will use in the next month based on their past behavior.
+
+####Data Explore
+
+#####Libraries
+
+```{r results='hide'}
+#install.packages("rmarkdown")
+#install.packages("knitr")
+#install.packages("shiny")
+#install.packages("readr")
+#install.packages("dplyr")
+#install.packages("ggplot2")
+#install.packages("tidyr")
+library(knitr)
+library(readr)
+library(dplyr)
+library(ggplot2)
+library(tidyr)
+library(data.table)
+```
+
+
+#####Load Data from CSV files :
+```{r results='hide'}
+data_raw <- read_csv("~/data.csv")
+```
+
+
+#####Data Dimension :
+```{r}
+dim(data_raw)
+```
+
+
+#####Data summary :
+```{r}
+summary(data_raw)
+```
+
+
+#####variables(column) names :
+```{r}
+names(data_raw)
+```
+
+
+#####Column Rename :
+```{r results='hide'}
+setnames(data_raw, old=c("fecha_dato", 
+                         "ncodpers", 
+                         "ind_empleado", 
+                         "pais_residencia",
+                         "sexo",
+                         "fecha_alta",
+                         "ind_nuevo",
+                         "antiguedad",
+                         "indrel",                
+                         "ult_fec_cli_1t",
+                         "indrel_1mes",
+                         "tiprel_1mes",           
+                         "indresi",               
+                         "indext",                
+                         "conyuemp",    
+                         "canal_entrada",         
+                         "indfall",
+                         "tipodom",
+                         "cod_prov", 
+                         "nomprov",
+                         "ind_actividad_cliente", 
+                         "renta",
+                         "ind_ahor_fin_ult1",     
+                         "ind_aval_fin_ult1",    
+                         "ind_cco_fin_ult1",      
+                         "ind_cder_fin_ult1",     
+                         "ind_cno_fin_ult1",      
+                         "ind_ctju_fin_ult1",    
+                         "ind_ctma_fin_ult1",     
+                         "ind_ctop_fin_ult1",     
+                         "ind_ctpp_fin_ult1",     
+                         "ind_deco_fin_ult1",    
+                         "ind_deme_fin_ult1",     
+                         "ind_dela_fin_ult1",     
+                         "ind_ecue_fin_ult1",     
+                         "ind_fond_fin_ult1",    
+                         "ind_hip_fin_ult1",     
+                         "ind_plan_fin_ult1",     
+                         "ind_pres_fin_ult1",     
+                         "ind_reca_fin_ult1",    
+                         "ind_tjcr_fin_ult1",     
+                         "ind_valo_fin_ult1",     
+                         "ind_viv_fin_ult1",      
+                         "ind_nomina_ult1",      
+                         "ind_nom_pens_ult1",     
+                         "ind_recibo_ult1"
+), 
+new=c("date", 
+      "custcode", 
+      "emp_index", 
+      "country",
+      "gender",
+      "first_date",
+      "new_customer",
+      "senior",            
+      "primary",            
+      "last_date",
+      "customer_typ",
+      "customer_rel_typ",
+      "res_indx",
+      "for_indx",
+      "spouse_indx",
+      "channel",
+      "dec_indx",
+      "add_type",
+      "prov_code",
+      "prov_name",
+      "cust_active",
+      "income",
+      "saving_Acc",
+      "guarantees",
+      "curr_Acc",
+      "deri_Acc",
+      "payroll_acc",
+      "junior_acc",
+      "Más_part_Acc",
+      "part_Acc",
+      "part_Plus_Acc",
+      "Shrt_term_dep",
+      "Mid_term_dep",
+      "Long_term_dep",
+      "e_acc",
+      "funds",
+      "mortgage",
+      "pensions",
+      "loans",
+      "taxes",
+      "credit_card",
+      "securities",
+      "home_acc",
+      "payroll",
+      "nom_pensions",
+      "direct_debit"
+))
+```
+
+
+#####New Column Names :
+```{r}
+names(data_raw)
+```
+
+
+#####Glimpse of Data through tidyr package :
+```{r}
+glimpse(data_raw)
+```
+
+
+#####Check if there any NA's present in the data :
+```{r}
+summary(factor(sapply(data_raw, function(x)any(is.na(x)))))
+sapply(data_raw, function(x)any(is.na(x)))
+```
+
+
+####Data Cleaning
+#####Employee Index
+*emp_index
+-Employee index: A active, B ex employed, F filial, N not employee, P pasive.
+-Remove record that having missing emp_index.
+```{r}
+data_raw <- subset(data_raw, data_raw$emp_index!="")
+```
+
+
+#####Date format correction :
+```{r}
+data_raw$date <- as.POSIXct(strptime(data_raw$date,format="%Y-%m-%d"))
+data_raw$first_date <- as.POSIXct(strptime(data_raw$first_date,format="%Y-%m-%d"))
+```
+
+
+#####Numeric data type conversion :
+```{r}
+data_raw$age <- as.numeric(data_raw$age)
+data_raw$income <- as.numeric(data_raw$income)
+```
+
+
+#####Age
+* Data Filtering with age
+- filter data with less then 100 year people with graph.
+```{r}
+data_raw <- subset(data_raw, data_raw$age>=18 & data_raw$age<=100)
+hist(data_raw$age)
+```
+
+People with age 20-25 having higest frequeny and people from 25-20 having average frequency
+60-100 decresing low.
+
+
+#####Gender
+*Data Filtering with Gender
+-Removing NA from Gender 
+```{r}
+summary(factor(data_raw$gender))
+data_raw  <- subset(data_raw, !is.na(gender))
+summary(factor(data_raw$gender))
+```
+
+
+#####segmentation
+* segmento
+- 01 - VIP, 02 - Individuals 03 - college graduated
+- Removing NA's (Subset)
+```{r}
+summary(factor(data_raw$segmento))
+#data_raw  <- subset(data_raw, !is.na(segmento))
+```
+
+
+#####channel used by the customer to join
+* canal_entrada       
+- Channel used by the customer to join
+- Removing NA's (Subset)
+```{r}
+summary(is.na(data_raw$channel))
+#Mode    FALSE       TRUE 
+#logical 13326623    847
+
+data_raw  <- subset(data_raw, !is.na(channel))
+```
+
+
+#####Salary
+* Salary Distibution
+- Income NA values -> Median.
+```{r}
+summary(data_raw$income)
+summary(factor(is.na(data_raw$income)))
+data_raw$income[is.na(data_raw$income)] <- median(data_raw$income, na.rm=TRUE)
+####
+#count(filter(data_raw, income >= 4000000)) #upper limit
+#count(filter(data_raw, income <= 0)) #low limit
+
+#df <- filter(data_raw, income >= 28894390)
+#df$nomprov
+
+#ggplot(data_raw, aes(x=nomprov, y=income)) + geom_point()
+```
+
+MADRID prov_name is having the highest salary 8894396
+
+
+#####Province
+* Province name
+- Data is important, even for those who's place is unknown.
+- Random string and value 0 in the _code.
+```{r}
+summary(factor(data_raw$prov_name))
+data_raw$prov_name[is.na(data_raw$prov_name)==TRUE] <- 'unknown'
+data_raw$prov_code[is.na(data_raw$prov_code)==TRUE] <- 0
+summary(factor(is.na(data_raw$prov_name)))
+```
+
+
+#####Customer Type
+* customer_typ
+- Customer type at the beginning of the month.
+- 1 (First/Primary customer), 2 (co-owner ),P (Potential),3 (former primary), 4(former co-owner).
+```{r}
+summary(factor(data_raw$customer_typ))
+#1            2        3         4     NA's 
+#13359714     1317     4338      305   122183 
+data_raw$customer_typ[is.na(data_raw$customer_typ)] <- 1
+```
+
+
+#####Payroll
+* ind_nomina_ult1 
+- Highest variable values to NA's
+```{r}
+summary(factor(data_raw$payroll))
+#       0        1     NA's 
+#12581324   745165      134 
+data_raw$payroll[is.na(data_raw$payroll)] <- 0
+```
+
+
+#####Pensions
+* ind_plan_fin_ult1 
+- Highest variable values to NA's
+```{r}
+summary(factor(data_raw$pensions))
+#       0        1     NA's 
+#12517530   808959      134 
+data_raw$pensions[is.na(data_raw$pensions)] <- 0
+```
+
+
+#####Nom Pensions
+* ind_nom_pens_ult1
+- Highest variable values to NA's.
+```{r}
+summary(factor(data_raw$nom_pensions))
+#0        1     NA's 
+#12521577   808972      149 
+data_raw$nom_pensions[is.na(data_raw$nom_pensions)] <- 0
+```
+
+#####Customer Relation Type
+* customer_rel_typ
+- Customer relation type at the beginning of the month, 
+- A (active), I (inactive), P (former customer),R (Potential)
+- NA to highest value
+```{r}
+summary(factor(data_raw$customer_rel_typ))
+data_raw$customer_rel_typ[is.na(data_raw$customer_rel_typ)] <- 'I'
+```
+
+
+#####spouse_indx & The date in which the customer became as the first holder of a contract in the bank
+```{r}
+summary(factor(data_raw$spouse_indx))
+summary(factor(data_raw$last_date))
+```
+
+#####Cleaned Data
+
+####Exploratory Data Analysis
+#####Data Visualization
+
+```{r}
+#install.packages("lubridate")
+library(lubridate)
+#install.packages("ggthemes")
+library(ggthemes)
+library(ggplot2)
+#install.packages("corrplot")
+library(corrplot)
+```
+
+
+#####Records from cleaned Data Set
+```{r}
+head(data_raw)
+```
+
+
+#####Clean Data Import
+```{r}
+clean_data <- data_raw
+```
+
+
+#####Product related data
+```{r}
+product <- data_raw[,25:48]
+```
+
+
+####Data Exploration
+#####1. Exploring(Distribution) Customer Age 
+#####Variable converstion form integer to numeric
+```{r}
+class(clean_data$age)
+clean_data$age<-as.numeric(as.character(clean_data$age))
+```
+
+#####Visualization
+```{r}
+ggplot(clean_data, aes(x=age)) +
+  stat_count(width=1, position="stack") +
+  ggtitle("Age Histogram")
+```
+
+#####2. age VS segmento (01 - VIP, 02 - Individuals 03 - college graduated)
+#####Segmento into factor
+#####clean_data$segmento <- factor(clean_data$segmento, labels = c("VIP", "Individuals","Graduates"))
+#####Visualization (age VS segmento)
+```{r}
+ggplot(clean_data, aes(x=age, fill=factor(segmento))) +
+  geom_bar() +
+  facet_grid(".~segmento") + 
+  scale_fill_discrete(name="Segmantation") +
+  theme(legend.position="top") +
+  scale_y_continuous("Frequency") 
+```
+
+
+
+#####3. gender VS segmento
+#####Segmento into factor
+#####Gender 
+```{r}
+clean_data$gender <- factor(clean_data$gender, labels = c("Male", 
+                                                          "Female"))
+```
+
+
+#####Visualization (gender VS segmento)
+```{r}
+ggplot(clean_data, aes(x=gender,  fill = factor(gender))) +
+  geom_bar() +
+  facet_grid(".~segmento") + 
+  scale_fill_discrete(name="Gender") +
+  theme(legend.position="top") +
+  scale_y_continuous("Frequency") 
+```
+
+
+#####4 Changing Age Distribution Over Years(opening accounts)
+#####first_date(Year) VS Age
+#####COnverstion of the date into years
+```{r}
+clean_data %>% 
+  group_by(year=floor_date(first_date, "year")) %>%
+  summarize(age=mean(age)) %>%
+  ggplot(aes(x=year, y= age)) + 
+  geom_line() +
+  xlab("Year") + ylab("Average Age")
+```
+
+
+#####5  Exploring Customer Income
+```{r}
+ggplot(clean_data, aes(x=segmento ,y=income)) +
+  geom_point() +
+  # facet_grid(".~segmento") + 
+  scale_fill_discrete(name="Segmentation") 
+# theme(legend.position="top") 
+```
+
+#####6 Product correlation with each other 
+```{r}
+product_corr <- cor(product)
+corrplot(product_corr, method="square")
+```
+
+#####Correlation on Graph
+```{r}
+layout(matrix(1:1, ncol = 3))
+corrplot(product_corr, method="number", tl.cex = 1)
+```
+
+
+#####7 Most popular products in customers.
+```{r}
+product_tbl<-colSums(product)
+barplot(product_tbl,
+        main = "Most Popular Product",
+        col = "darkred",
+        las=2,
+        cex.axis=0.7,
+        cex.names=0.7)
+```
+
+
+#####Sorted all top product
+```{r}
+all_prod_name <- head(sort(product_tbl,decreasing=TRUE), n = 24)
+```
+
+#####Graph
+```{r}
+barplot(all_prod_name,
+        main = "Most Popular Product",
+        col = "darkred",
+        las=2,
+        cex.axis=0.7,
+        cex.names=0.7)
+```
+
+
+#####TOP Most product
+```{r}
+top_prod_name <- head(sort(product_tbl,decreasing=TRUE), n = 5)
+top_prod_name
+```
+
+
+#####Data with top 5 products
+```{r}
+data_top_product<-cbind(clean_data[,1:24], 
+                        clean_data[,27], #curr_Acc 
+                        clean_data[,29], #payroll_acc
+                        clean_data[,32], #part_Acc
+                        clean_data[,37], #e_acc
+                        clean_data[,48]) #direct_debit
+names(data_top_product)
+```
+
+
+####Model-Collaborative Filtering (Item Based)
+#####RECOMMENDATION SYSTEM
+
+```{r}
+#install.packages("arules")
+library(arules)
+```
+
+```{r}
+dim(data_top_product)
+```
+
+
+#####Select Active customer in the bank
+```{r}
+data_top_product_active <- subset(data_top_product, data_top_product$cust_active==1)
+dim(data_top_product_active)
+names(data_top_product_active)
+```
+
+
+#####Data Matrix
+```{r}
+data.matrix <- data_top_product_active
+```
+
+
+#####Custumer ID to Character
+```{r}
+data.matrix$custcode <- as.character(data.matrix$custcode)
+```
+
+
+#####Convert age (Continuous Variable) Into A Categorical Variable
+```{r}
+data.matrix$age <- discretize(data.matrix$age, method = "frequency", 5) 
+data.matrix$new_customer <- as.logical(data.matrix$new_customer)
+data.matrix$primary <- as.factor(data.matrix$primary)
+data.matrix$prov_code<-as.factor(data.matrix$prov_code)
+```
+
+
+#####Convert income (Continuous Variable) Into A Categorical Variable
+```{r}
+data.matrix$income <- discretize(data.matrix$income, method = "frequency", 5)
+data.matrix$first_date<- as.factor(data.matrix$first_date)
+```
+
+
+#####Select only non-employee users
+```{r}
+data.matrix<-subset(data.matrix, data.matrix$emp_index=="N")
+```
+
+
+#####Removed add_type, cust_active, emp_index, date
+```{r}
+data.matrix <- cbind(data.matrix[,2],
+                     data.matrix[,4:18],
+                     data.matrix[,20:21],
+                     data.matrix[,23:29]) 
+
+dim(data.matrix)
+names(data.matrix)
+```
+
+
+###Item-based Collaborative Filtering
+#####Product Information
+```{r}
+data.recomendation <- data.matrix[,21:25]
+```
+
+
+#####Create item to item dataframe
+```{r}
+df.matrix <- matrix(NA, nrow=ncol(data.recomendation),
+                    ncol=ncol(data.recomendation),
+                    dimnames=list(names(data.recomendation),
+                                  names(data.recomendation)))
+```
+
+
+#####matrix data frame
+```{r}
+recom.similarity <- as.data.frame(df.matrix)
+```
+
+#####cosine between two vectors function
+```{r}
+getCosine <- function(x,y) 
+{
+  this.cosine <- sum(x*y) / (sqrt(sum(x*x)) * sqrt(sum(y*y)))
+  return(this.cosine)
+}
+```
+
+
+#####cosine similarities on each product with each product
+```{r}
+for(i in 1:ncol(data.recomendation)) {
+  for(j in 1:ncol(data.recomendation)) {
+      recom.similarity[i,j]= getCosine(data.recomendation[i],data.recomendation[j])
+  }
+}
+
+recom.similarity <- as.data.frame(recom.similarity)
+recom.similarity
+```
+
+
+#####Get the top 3 neighbours for each product
+#####Recommend only 2 product for each user for future
+```{r}
+product.neighbours <- matrix(NA, nrow=ncol(recom.similarity),
+                          ncol=3,dimnames=list(colnames(recom.similarity)))
+```
+
+
+#####Creating a table of recomendation for each product
+```{r}
+for(k in 1:ncol(data.recomendation)) 
+{
+  product.neighbours[k,] <- (t(head(n=3,rownames(recom.similarity[order(recom.similarity[,k],decreasing=TRUE),][k]))))
+}
+product.neighbours
+```
+
+
+#####Adding recomended product to the particular user
+```{r}
+data.final<-cbind(data.matrix[,1],product.neighbours[,2],product.neighbours[,3])
+colnames(data.final)<-c("CustomerID", "First_added_products", "Second_added_products")
+```
+
+#####First 20 Users with most likely buying products
+```{r}
+head(data.final, n=20)
+```
